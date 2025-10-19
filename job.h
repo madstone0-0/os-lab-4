@@ -24,7 +24,8 @@ struct Job {
     Job(char id, int arr, int cyc, int st, int ct)
         : id{id}, arrivalTime{arr}, cycleTime{cyc}, startTime{st}, completionTime{ct} {}
 
-    bool operator<(const Job& other) const noexcept { return arrivalTime > other.arrivalTime; }
+    bool operator<(const Job& other) const noexcept { return arrivalTime < other.arrivalTime; }
+    bool operator>(const Job& other) const noexcept { return arrivalTime > other.arrivalTime; }
 };
 
 using Jobs = vector<Job>;
@@ -45,14 +46,14 @@ inline Jobs makeJobs() {
 }
 
 struct JobSpawner {
-    explicit JobSpawner(const Jobs& jobs) : jobHeap{jobs} { make_heap(jobHeap.begin(), jobHeap.end()); }
+    explicit JobSpawner(const Jobs& jobs) : jobHeap{jobs} { make_heap(jobHeap.begin(), jobHeap.end(), greater<Job>()); }
 
     bool hasJobs() const { return !jobHeap.empty(); }
 
     Jobs jobArrival(int tick) {
         Jobs arrived;
         while (hasJobs() && jobHeap.front().arrivalTime <= tick) {
-            pop_heap(jobHeap.begin(), jobHeap.end());
+            pop_heap(jobHeap.begin(), jobHeap.end(), greater<Job>());
             auto job = jobHeap.back();
             jobHeap.pop_back();
             arrived.emplace_back(job);
