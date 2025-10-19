@@ -25,7 +25,7 @@ struct RoundRobin {
             remainingTime[job.id] = job.cycleTime;
             // stats: metric -> job.id -> value
             stats[WAIT_TIME][job.id] = 0;
-            stats["Turnaround Time"][job.id] = 0;
+            stats[TURN_TIME][job.id] = 0;
         }
     }
 

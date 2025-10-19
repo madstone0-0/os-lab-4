@@ -1,124 +1,85 @@
-#include <iostream>
-#include <vector>
+// Shortest Job Next Scheduling Simulation
+// build: g++ sjn.cpp -o sjn -std=c++11
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
+#include <vector>
+
+#include "job.h"
 using namespace std;
 
-class Process {
-public:
-    string pid;
-    int arrival_time;
-    int cpu_cycle;
-    int start_time;
-    int completion_time;
-    int waiting_time;
-    int turnaround_time;
+static const string WAIT_TIME = "Waiting Time";
+static const string TURN_TIME = "Turnaround Time";
 
-    Process(string id, int arrival, int cpu)
-        : pid(id), arrival_time(arrival), cpu_cycle(cpu),
-          start_time(0), completion_time(0),
-          waiting_time(0), turnaround_time(0) {}
-};
-
-void sjn_scheduling(vector<Process>& processes) {
-    // Sort by arrival time
-    sort(processes.begin(), processes.end(),
-        [](const Process& a, const Process& b) {
-            return a.arrival_time < b.arrival_time;
-        });
+void sjn_scheduling(const Jobs& processes) {
+    // Job spawner
+    auto spawner = JobSpawner(processes);
+    StatsMap stats;
+    for (const auto& job : spawner.jobHeap) {
+        // stats: metric -> job.id -> value
+        stats[WAIT_TIME][job.id] = 0;
+        stats[TURN_TIME][job.id] = 0;
+    }
 
     int current_time = 0;
-    vector<Process> completed;
-    vector<Process> remaining = processes;
-    vector<int> waiting_times, turnaround_times;
+    Jobs remaining;
+    Jobs completed;
 
-    while (!remaining.empty()) {
+    while (spawner.hasJobs() || completed.size() < processes.size()) {
         // Get available processes
-        vector<Process*> available;
-        for (auto& p : remaining) {
-            if (p.arrival_time <= current_time)
-                available.push_back(&p);
-        }
+        auto available = spawner.jobArrival(current_time);
+        for (const auto& j : available) remaining.push_back(j);
 
-        if (available.empty()) {
+        if (remaining.empty()) {
             // Jump to next process if CPU idle
-            current_time = remaining.front().arrival_time;
+            current_time = spawner.jobHeap.front().arrivalTime;
             continue;
         }
 
         // Select process with shortest CPU cycle
-        auto shortest_it = min_element(available.begin(), available.end(),
-            [](Process* a, Process* b) {
-                return a->cpu_cycle < b->cpu_cycle;
-            });
+        auto shortest_it = min_element(remaining.begin(), remaining.end(),
+                                       [](const Job& a, const Job& b) { return a.cycleTime < b.cycleTime; });
 
-        Process* shortest = *shortest_it;
+        auto& shortest = *shortest_it;
 
         // Compute times
-        shortest->start_time = current_time;
-        shortest->completion_time = current_time + shortest->cpu_cycle;
-        shortest->turnaround_time = shortest->completion_time - shortest->arrival_time;
-        shortest->waiting_time = shortest->turnaround_time - shortest->cpu_cycle;
+        shortest.startTime = current_time;
+        shortest.completionTime = current_time + shortest.cycleTime;
+        stats[WAIT_TIME][shortest.id] = shortest.startTime - shortest.arrivalTime;
+        stats[TURN_TIME][shortest.id] = shortest.completionTime - shortest.arrivalTime;
 
         // Update time and record data
-        current_time = shortest->completion_time;
-        completed.push_back(*shortest);
-        waiting_times.push_back(shortest->waiting_time);
-        turnaround_times.push_back(shortest->turnaround_time);
-
-        // Remove from remaining list
-        remaining.erase(remove_if(remaining.begin(), remaining.end(),
-            [&](const Process& p) { return p.pid == shortest->pid; }),
-            remaining.end());
+        current_time = shortest.completionTime;
+        completed.push_back(shortest);
+        remaining.erase(shortest_it);
     }
 
     // Display results
     cout << "SJN Scheduling Results:\n";
-    cout << left << setw(5) << "Job"
-         << setw(8) << "Arrival"
-         << setw(6) << "Burst"
-         << setw(8) << "Start"
-         << setw(11) << "Completion"
-         << setw(10) << "Waiting"
-         << setw(12) << "Turnaround" << "\n";
-
-    for (auto& p : completed) {
-        cout << left << setw(5) << p.pid
-             << setw(8) << p.arrival_time
-             << setw(6) << p.cpu_cycle
-             << setw(8) << p.start_time
-             << setw(11) << p.completion_time
-             << setw(10) << p.waiting_time
-             << setw(12) << p.turnaround_time << "\n";
-    }
+    printStatusMapAsTable(stats);
 
     // Compute averages
-    double avg_wait = 0, avg_turn = 0;
-    for (size_t i = 0; i < waiting_times.size(); ++i) {
-        avg_wait += waiting_times[i];
-        avg_turn += turnaround_times[i];
+    double n = processes.size();
+    double avgWait{};
+    double avgTurn{};
+    auto waitItr = stats[WAIT_TIME].begin();
+    auto turnItr = stats[TURN_TIME].begin();
+    for (; waitItr != stats[WAIT_TIME].end() && turnItr != stats[TURN_TIME].end(); ++waitItr, ++turnItr) {
+        avgWait += (*waitItr).second;
+        avgTurn += (*turnItr).second;
     }
-    avg_wait /= waiting_times.size();
-    avg_turn /= turnaround_times.size();
+    avgWait /= n;
+    avgTurn /= n;
+    cout << "\nAverages\n"
+         << "Average Waiting Time:\t\t" << avgWait << " ms\nAverage Turnaround Time:\t" << avgTurn << " ms\n";
 
     cout << fixed << setprecision(2);
-    cout << "\nAverage Waiting Time: " << avg_wait << " ms\n";
-    cout << "Average Turnaround Time: " << avg_turn << " ms\n";
+    cout << "\nAverage Waiting Time: " << avgWait << " ms\n";
+    cout << "Average Turnaround Time: " << avgTurn << " ms\n";
 }
 
 int main() {
-    vector<Process> processes = {
-        {"A", 0, 16},
-        {"B", 3, 2},
-        {"C", 5, 11},
-        {"D", 9, 6},
-        {"E", 10, 1},
-        {"F", 12, 9},
-        {"G", 14, 4},
-        {"H", 16, 14},
-        {"I", 17, 1},
-        {"J", 19, 8}
-    };
+    Jobs processes = makeJobs();
 
     sjn_scheduling(processes);
     return 0;

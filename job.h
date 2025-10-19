@@ -17,8 +17,12 @@ struct Job {
     char id{};
     int arrivalTime{};
     int cycleTime{};
+    int startTime{-1};
+    int completionTime{};
 
     Job(char id, int arr, int cyc) : id{id}, arrivalTime{arr}, cycleTime{cyc} {}
+    Job(char id, int arr, int cyc, int st, int ct)
+        : id{id}, arrivalTime{arr}, cycleTime{cyc}, startTime{st}, completionTime{ct} {}
 
     bool operator<(const Job& other) const noexcept { return arrivalTime > other.arrivalTime; }
 };
